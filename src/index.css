@@ -1,0 +1,341 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;600;800&family=MedievalSharp&family=Poppins:wght@300;400;600;800&family=Quicksand:wght@400;600;700&family=Cinzel:wght@400;700;900&family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Creepster&family=Fredoka:wght@400;600;700&family=Pacifico&family=Montserrat:wght@400;600;800&family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400&family=Josefin+Sans:wght@400;700&family=Rajdhani:wght@400;600;700&family=Audiowide&family=Share+Tech+Mono&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-body, "Inter", ui-sans-serif, system-ui, sans-serif);
+  --font-display: var(--font-heading, "Outfit", sans-serif);
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-bg: var(--bg);
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+    20%, 40%, 60%, 80% { transform: translateX(4px); }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    50% { box-shadow: 0 0 20px 10px rgba(16, 185, 129, 0); }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+}
+
+:root {
+  --primary: #6366f1;
+  --secondary: #4f46e5;
+  --accent: #10b981;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --ink: #0f172a;
+  --text-muted: #64748b;
+  --font-heading: "Outfit", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --radius: 1rem;
+  --border-width: 1px;
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+.theme-classic {
+  --primary: #FFD700;
+  --secondary: #8B4513;
+  --accent: #FFD700;
+  --bg: #F5E6D3;
+  --surface: #ffffff;
+  --ink: #2C1810;
+  --text-muted: #8B4513;
+  --font-heading: 'MedievalSharp', cursive;
+  --font-body: 'Georgia', serif;
+}
+
+.theme-modern-dark {
+  --primary: #00FFFF;
+  --secondary: #6B2DFF;
+  --accent: #00FFFF;
+  --bg: #0A0F1F;
+  --surface: #161B2E;
+  --ink: #FFFFFF;
+  --text-muted: #94A3B8;
+  --font-heading: 'Poppins', sans-serif;
+  --font-body: 'Poppins', sans-serif;
+}
+
+.theme-forest {
+  --primary: #7A9E6B;
+  --secondary: #5D3A1A;
+  --accent: #2D5A27;
+  --bg: #2D5A27;
+  --surface: #F0EAD2;
+  --ink: #1B3022;
+  --text-muted: #5D3A1A;
+  --font-heading: 'Quicksand', sans-serif;
+  --font-body: 'Quicksand', sans-serif;
+}
+
+.theme-pirate {
+  --primary: #F4C430;
+  --secondary: #6B4423;
+  --accent: #1A4D8C;
+  --bg: #1A4D8C;
+  --surface: #F4E4C1;
+  --ink: #2C1810;
+  --text-muted: #6B4423;
+  --font-heading: 'Cinzel', serif;
+  --font-body: 'Cormorant Garamond', serif;
+}
+
+.theme-minimal {
+  --primary: #333333;
+  --secondary: #666666;
+  --accent: #000000;
+  --bg: #FFFFFF;
+  --surface: #F5F5F5;
+  --ink: #333333;
+  --text-muted: #999999;
+  --font-heading: 'Inter', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+.theme-retro {
+  --primary: #FFD966;
+  --secondary: #E63946;
+  --accent: #3A6EA5;
+  --bg: #3A6EA5;
+  --surface: #FFFFFF;
+  --ink: #000000;
+  --text-muted: #666666;
+  --font-heading: 'Press Start 2P', cursive;
+  --font-body: 'Press Start 2P', cursive;
+}
+
+.theme-mystery {
+  --primary: #8B0000;
+  --secondary: #4B0082;
+  --accent: #8B0000;
+  --bg: #0A0A0A;
+  --surface: #1A1A1A;
+  --ink: #FFFFFF;
+  --text-muted: #8B0000;
+  --font-heading: 'Creepster', cursive;
+  --font-body: 'Cormorant Garamond', serif;
+}
+
+.theme-festival {
+  --primary: #FF69B4;
+  --secondary: #FFD700;
+  --accent: #00BFFF;
+  --bg: #FDF5E6;
+  --surface: #FFFFFF;
+  --ink: #333333;
+  --text-muted: #666666;
+  --font-heading: 'Fredoka', sans-serif;
+  --font-body: 'Fredoka', sans-serif;
+}
+
+.theme-tech {
+  --primary: #00FF00;
+  --secondary: #003300;
+  --accent: #00FF00;
+  --bg: #000000;
+  --surface: #0A0A0A;
+  --ink: #00FF00;
+  --text-muted: #008800;
+  --font-heading: 'JetBrains Mono', monospace;
+  --font-body: 'JetBrains Mono', monospace;
+}
+
+.theme-kids {
+  --primary: #FF4500;
+  --secondary: #1E90FF;
+  --accent: #32CD32;
+  --bg: #FFFACD;
+  --surface: #FFFFFF;
+  --ink: #333333;
+  --text-muted: #666666;
+  --font-heading: 'Fredoka', sans-serif;
+  --font-body: 'Fredoka', sans-serif;
+}
+
+.theme-underwater {
+  --primary: #FF6B6B;
+  --secondary: #006994;
+  --accent: #7FDBFF;
+  --bg: #006994;
+  --surface: #F4E4C1;
+  --ink: #FDF5E6;
+  --text-muted: #7FDBFF;
+  --font-heading: 'Pacifico', cursive;
+  --font-body: 'Quicksand', sans-serif;
+}
+
+.theme-desert {
+  --primary: #FFD700;
+  --secondary: #6A0DAD;
+  --accent: #FFD700;
+  --bg: #C2B280;
+  --surface: #E5D3B3;
+  --ink: #5C4E3D;
+  --text-muted: #6A0DAD;
+  --font-heading: 'Cinzel', serif;
+  --font-body: 'Cormorant Garamond', serif;
+}
+
+.theme-space {
+  --primary: #FF6B9D;
+  --secondary: #9D4EDD;
+  --accent: #39FF14;
+  --bg: #0B0B1F;
+  --surface: #1A1A3A;
+  --ink: #FFE484;
+  --text-muted: #9D4EDD;
+  --font-heading: 'Orbitron', sans-serif;
+  --font-body: 'Rajdhani', sans-serif;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Mobile-first typography */
+html {
+  font-size: 16px;
+}
+
+@media (max-width: 480px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.brutal-border {
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0px var(--ink);
+}
+
+.brutal-btn {
+  @apply px-6 py-3 font-display font-bold uppercase tracking-wider transition-all;
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0px var(--ink);
+}
+
+.brutal-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px var(--ink);
+}
+
+.brutal-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0px 0px 0px var(--ink);
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+.animate-shake {
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes scan {
+  0%, 100% { top: 0%; }
+  50% { top: 100%; }
+}
+
+@keyframes rotating {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes flicker {
+  0%, 19.999%, 22%, 62.999%, 64%, 64.999%, 70%, 100% { opacity: 1; }
+  20%, 21.999%, 63%, 63.999%, 65%, 69.999% { opacity: 0.4; }
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-width: 2px; }
+  50% { border-width: 6px; }
+}
+
+.scanner-line {
+  position: absolute;
+  width: 100%;
+  height: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: scan 2s linear infinite;
+}
+
+.clip-path-star {
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+
+.clip-path-hexagon {
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+
+.clip-path-diamond {
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+
+.clip-path-pyramid {
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+}
+
+.rounded-inherit {
+  border-radius: inherit;
+}
+
+.animate-rotating {
+  animation: rotating 3s linear infinite;
+}
+
+.animate-flicker {
+  animation: flicker 2s infinite;
+}
+
+.animate-pulse-border {
+  animation: pulse-border 1s infinite;
+}

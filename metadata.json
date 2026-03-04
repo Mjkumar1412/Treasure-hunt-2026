@@ -1,0 +1,7 @@
+{
+  "name": "Treasure Hunt Pro",
+  "description": "Offline QR Code Treasure Hunt with real-time tracking and admin control.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
