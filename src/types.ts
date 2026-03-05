@@ -34,6 +34,10 @@ export interface Game {
   allowedThemes?: string; // JSON string of ThemeType[]
   allowUserThemeChange: boolean;
   defaultTheme: string;
+  pdfEnabled: boolean;
+  websiteOnlyScanning: boolean;
+  fallbackMode: boolean;
+  fallbackMessage?: string;
 }
 
 export interface Clue {
@@ -43,6 +47,7 @@ export interface Clue {
   content: string;
   code: string;
   teamId?: string;
+  qrStyle?: string;
 }
 
 export interface Team {
@@ -54,6 +59,20 @@ export interface Team {
   currentClueSequence: number;
   lastScanTime?: string;
   isLoggedIn: boolean;
+  qrStyle?: string;
+  termsAccepted: boolean;
+  termsAcceptedDate?: string;
+  termsVersion?: string;
+  termsIpAddress?: string;
+  termsUserAgent?: string;
+}
+
+export interface TermsVersion {
+  id: string;
+  version: string;
+  content: string;
+  createdDate: string;
+  isActive: boolean;
 }
 
 export interface Admin {

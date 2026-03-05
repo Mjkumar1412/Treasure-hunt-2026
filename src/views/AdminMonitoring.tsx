@@ -49,7 +49,9 @@ const AdminMonitoring: React.FC<AdminMonitoringProps> = ({ gameId, onBack }) => 
 
   const getProgress = (team: Team) => {
     const totalClues = cluesCount[team.id] || 1;
-    return Math.min(((team.currentClueSequence - 1) / totalClues) * 100, 100);
+    const current = Number(team.currentClueSequence) || 1;
+    const progress = ((current - 1) / totalClues) * 100;
+    return isNaN(progress) ? 0 : Math.min(Math.max(0, progress), 100);
   };
 
   const [cluesCount, setCluesCount] = useState<Record<string, number>>({});
@@ -141,7 +143,7 @@ const AdminMonitoring: React.FC<AdminMonitoringProps> = ({ gameId, onBack }) => 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTeams.map((team, idx) => (
             <motion.div 
-              key={team.id}
+              key={`team-${team.id}-${idx}`}
               layout
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}

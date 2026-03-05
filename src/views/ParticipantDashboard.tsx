@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Camera, History, LogOut, MapPin, Trophy, Clock, ChevronRight, X, Settings, Palette } from 'lucide-react';
+import { Camera, History, LogOut, MapPin, Trophy, Clock, ChevronRight, X, Settings, Palette, FileText, Share2, Download } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Team, Game, Clue, ScanHistory } from '../types';
 import { QRScanner } from '../components/QRScanner';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
+import { downloadCluePDF, shareCluePDF } from '../utils/pdfGenerator';
 import socket from '../lib/socket';
 
 interface ParticipantDashboardProps {
@@ -38,7 +39,7 @@ const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({ team, onLog
   const [showHistory, setShowHistory] = useState(false);
   const [showThemeSwitcher, setShowThemeSwitcher] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ message: string; clue?: Clue } | null>(null);
   const [countdown, setCountdown] = useState<string>('');
 
   useEffect(() => {
@@ -52,7 +53,7 @@ const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({ team, onLog
 
     socket.on('game_over', ({ winnerName }) => {
       fetchGame();
-      alert(`Game Over! Winner: ${winnerName}`);
+      setSuccess({ message: `Game Over! Winner: ${winnerName}` });
     });
 
     return () => {
@@ -139,7 +140,7 @@ const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({ team, onLog
       }
 
       if (data.status === 'winner') {
-        setSuccess('CONGRATULATIONS! YOU FOUND THE TREASURE!');
+        setSuccess({ message: 'CONGRATULATIONS! YOU FOUND THE TREASURE!' });
         confetti({
           particleCount: 150,
           spread: 70,
@@ -147,7 +148,10 @@ const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({ team, onLog
           colors: ['#10b981', '#fbbf24', '#3b82f6']
         });
       } else {
-        setSuccess(`Correct! Clue #${data.clue.sequence} solved.`);
+        setSuccess({ 
+          message: `Correct! Clue #${data.clue.sequence} solved.`,
+          clue: data.clue
+        });
       }
       
       fetchHistory();
@@ -318,12 +322,36 @@ const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({ team, onLog
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-600 text-sm font-medium flex items-center gap-3"
+              className="p-5 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-600 shadow-sm"
             >
-              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                <Trophy size={16} />
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                  <Trophy size={20} />
+                </div>
+                <p className="text-sm font-bold">{success.message}</p>
+                <button onClick={() => setSuccess(null)} className="ml-auto p-1 hover:bg-emerald-100 rounded-lg">
+                  <X size={16} />
+                </button>
               </div>
-              {success}
+
+              {game?.pdfEnabled && success.clue && (
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => downloadCluePDF(success.clue!, team)}
+                    className="flex-1 py-2 bg-white border border-emerald-200 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-100 transition-colors"
+                  >
+                    <Download size={14} />
+                    Download PDF
+                  </button>
+                  <button 
+                    onClick={() => shareCluePDF(success.clue!, team)}
+                    className="flex-1 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors"
+                  >
+                    <Share2 size={14} />
+                    Share Clue
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -378,6 +406,8 @@ const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({ team, onLog
           style={game?.scannerStyle ? JSON.parse(game.scannerStyle) : undefined}
           teamName={team?.name || team?.loginId}
           nextClueNumber={team?.currentClueSequence}
+          fallbackMode={game?.fallbackMode}
+          fallbackMessage={game?.fallbackMessage}
         />
       )}
 

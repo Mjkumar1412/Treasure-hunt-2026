@@ -10,9 +10,19 @@ interface QRScannerProps {
   style?: ScannerStyle;
   teamName?: string;
   nextClueNumber?: number;
+  fallbackMode?: boolean;
+  fallbackMessage?: string;
 }
 
-export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, style, teamName, nextClueNumber }) => {
+export const QRScanner: React.FC<QRScannerProps> = ({ 
+  onScan, 
+  onClose, 
+  style, 
+  teamName, 
+  nextClueNumber,
+  fallbackMode,
+  fallbackMessage
+}) => {
   const [isDetected, setIsDetected] = useState(false);
   const [hasFlash, setHasFlash] = useState(false);
   const [isFlashOn, setIsFlashOn] = useState(false);
@@ -49,11 +59,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, style, te
         );
 
         // Check for flash support
-        const track = (html5QrCode as any).getRunningTrack();
-        if (track && track.getCapabilities) {
-          const capabilities = track.getCapabilities() as any;
-          if (capabilities.torch) {
-            setHasFlash(true);
+        if (typeof (html5QrCode as any).getRunningTrack === 'function') {
+          const track = (html5QrCode as any).getRunningTrack();
+          if (track && track.getCapabilities) {
+            const capabilities = track.getCapabilities() as any;
+            if (capabilities.torch) {
+              setHasFlash(true);
+            }
           }
         }
       } catch (err: any) {
@@ -73,9 +85,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, style, te
 
   const toggleFlash = async () => {
     if (!html5QrCodeRef.current || !hasFlash) return;
+    if (typeof (html5QrCodeRef.current as any).applyVideoConstraints !== 'function') {
+      console.warn("applyVideoConstraints is not supported by this version of html5-qrcode");
+      return;
+    }
     try {
       const newState = !isFlashOn;
-      await html5QrCodeRef.current.applyVideoConstraints({
+      await (html5QrCodeRef.current as any).applyVideoConstraints({
         advanced: [{ torch: newState }] as any
       });
       setIsFlashOn(newState);
@@ -251,7 +267,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, style, te
       </div>
 
       {/* Bottom Status/Error */}
-      <div className="bg-black/80 backdrop-blur-md p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-center">
+      <div className="bg-black/80 backdrop-blur-md p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-center space-y-4">
+        {fallbackMode && fallbackMessage && (
+          <div className="p-3 bg-amber-500/20 border border-amber-500/30 rounded-xl">
+            <p className="text-amber-400 text-[10px] font-bold uppercase tracking-widest mb-1">Scanner Issues?</p>
+            <p className="text-white text-xs font-medium">{fallbackMessage}</p>
+          </div>
+        )}
+        
         {error ? (
           <div className="text-red-400 text-sm font-medium flex flex-col items-center gap-2">
             <p>{error}</p>

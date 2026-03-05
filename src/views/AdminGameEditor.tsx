@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Trash2, Printer, Play, Users, Key, FileText, CheckCircle2, ShieldAlert, Edit2, Scan, X, Filter, Palette, QrCode } from 'lucide-react';
-import { Game, Clue, Team, Admin, QRStyle, ScannerStyle, QRShape, QRColorType } from '../types';
+import { ArrowLeft, Plus, Trash2, Printer, Play, Users, Key, FileText, CheckCircle2, ShieldAlert, Edit2, Scan, X, Filter, Palette, QrCode, Shield, History, BarChart3, FileEdit, Eye, Download, Save, Settings, Smartphone, Type } from 'lucide-react';
+import { Game, Clue, Team, Admin, QRStyle, ScannerStyle, QRShape, QRColorType, TermsVersion } from '../types';
 import QRCodeStyled from '../components/QRCodeStyled';
 import { QRScanner } from '../components/QRScanner';
 
@@ -15,13 +15,21 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
   const [game, setGame] = useState<Game | null>(null);
   const [clues, setClues] = useState<Clue[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [activeTab, setActiveTab] = useState<'clues' | 'teams' | 'customize' | 'print'>('clues');
+  const [activeTab, setActiveTab] = useState<'clues' | 'teams' | 'customize' | 'print' | 'terms' | 'settings'>('clues');
+  const [termsData, setTermsData] = useState<{
+    versions: TermsVersion[];
+    stats: { total: number; accepted: number };
+    logs: any[];
+  } | null>(null);
+  const [newTermsContent, setNewTermsContent] = useState('');
+  const [newTermsVersion, setNewTermsVersion] = useState('');
   
   // Customization State
   const [qrStyle, setQrStyle] = useState<QRStyle>({
     shape: 'square',
-    colorType: 'solid',
-    primaryColor: '#6366f1',
+    colorType: 'gradient',
+    primaryColor: '#3b82f6',
+    secondaryColor: '#10b981',
     frameType: 'none'
   });
   const [scannerStyle, setScannerStyle] = useState<ScannerStyle>({
@@ -35,8 +43,17 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [newTeamCount, setNewTeamCount] = useState(1);
   const [showScanner, setShowScanner] = useState(false);
+  const [modal, setModal] = useState<{
+    type: 'confirm' | 'alert';
+    message: string;
+    onConfirm?: () => void;
+  } | null>(null);
   const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
   const [printFilterTeamId, setPrintFilterTeamId] = useState<string>('all');
+  
+  // QR Testing System State
+  const [testQrValue, setTestQrValue] = useState('TEST-VALUE-123');
+  const [showMobilePreview, setShowMobilePreview] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -51,24 +68,48 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
   };
 
   const fetchData = async () => {
-    const [gRes, cRes, tRes] = await Promise.all([
+    const [gRes, cRes, tRes, termsRes] = await Promise.all([
       fetch(`/api/games/${gameId}`),
       fetch(`/api/games/${gameId}/clues`),
-      fetch(`/api/games/${gameId}/teams`)
+      fetch(`/api/games/${gameId}/teams`),
+      fetch(`/api/admin/terms?requester=${admin.username}`)
     ]);
     const gameData = await gRes.json();
     setGame(gameData);
     setClues(await cRes.json());
     setTeams(await tRes.json());
+    setTermsData(await termsRes.json());
 
     if (gameData.qrStyle) setQrStyle(JSON.parse(gameData.qrStyle));
     if (gameData.scannerStyle) setScannerStyle(JSON.parse(gameData.scannerStyle));
   };
 
-  const handleDeleteClue = async (id: string) => {
-    if (!confirm('Delete this clue?')) return;
-    await fetch(`/api/clues/${id}?requester=${admin.username}`, { method: 'DELETE' });
+  const handleUpdateTerms = async () => {
+    if (!newTermsContent || !newTermsVersion) return;
+    await fetch('/api/admin/terms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requester: admin.username,
+        content: newTermsContent,
+        version: newTermsVersion
+      })
+    });
+    setNewTermsContent('');
+    setNewTermsVersion('');
     fetchData();
+  };
+
+  const handleDeleteClue = async (id: string) => {
+    setModal({
+      type: 'confirm',
+      message: 'Are you sure you want to delete this clue?',
+      onConfirm: async () => {
+        await fetch(`/api/clues/${id}?requester=${admin.username}`, { method: 'DELETE' });
+        fetchData();
+        setModal(null);
+      }
+    });
   };
 
   const handleAddClue = async (e: React.FormEvent) => {
@@ -100,17 +141,27 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
   };
 
   const handleStartGame = async () => {
-    if (!confirm('Are you sure you want to start the game now?')) return;
-    const res = await fetch(`/api/games/${gameId}/start`, { 
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requester: admin.username })
+    setModal({
+      type: 'confirm',
+      message: 'Are you sure you want to start the game now?',
+      onConfirm: async () => {
+        const res = await fetch(`/api/games/${gameId}/start`, { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requester: admin.username })
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          setModal({
+            type: 'alert',
+            message: data.error || 'Failed to start game'
+          });
+        } else {
+          setModal(null);
+          fetchData();
+        }
+      }
     });
-    if (!res.ok) {
-      const data = await res.json();
-      alert(data.error || 'Failed to start game');
-    }
-    fetchData();
   };
 
   const handleUpdateClue = async (e: React.FormEvent) => {
@@ -171,7 +222,19 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
       }),
     });
     fetchData();
-    alert('Customization saved successfully!');
+    setModal({
+      type: 'alert',
+      message: 'Customization saved successfully!'
+    });
+  };
+
+  const handleUpdateSettings = async (settings: Partial<Game>) => {
+    await fetch(`/api/games/${gameId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...settings, requester: admin.username }),
+    });
+    fetchData();
   };
 
   if (!game) return null;
@@ -293,6 +356,20 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
           >
             Print View
           </button>
+          <button 
+            onClick={() => setActiveTab('terms')}
+            className={`px-6 py-2 rounded-lg font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'terms' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            Terms
+          </button>
+          {admin.isMain && (
+            <button 
+              onClick={() => setActiveTab('settings')}
+              className={`px-6 py-2 rounded-lg font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'settings' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Settings
+            </button>
+          )}
         </div>
 
         {activeTab === 'clues' && (
@@ -352,8 +429,8 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
                         className="w-full h-12 px-4 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all text-sm"
                       >
                         <option value="">Shared Clue (All Teams)</option>
-                        {teams.map(t => (
-                          <option key={t.id} value={t.id}>{t.name || t.loginId}</option>
+                        {teams.map((t, idx) => (
+                          <option key={`team-opt-${t.id}-${idx}`} value={t.id}>{t.name || t.loginId}</option>
                         ))}
                       </select>
                     </div>
@@ -375,7 +452,7 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
               ) : (
                 clues.map((clue, idx) => (
                   <motion.div 
-                    key={clue.id}
+                    key={`clue-${clue.id}-${idx}`}
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: idx * 0.05 }}
@@ -457,8 +534,8 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {teams.map((team) => (
-                <div key={team.id} className="bg-white p-6 rounded-2xl border border-slate-200 flex items-center justify-between group hover:border-indigo-500 transition-all">
+              {teams.map((team, idx) => (
+                <div key={`team-card-${team.id}-${idx}`} className="bg-white p-6 rounded-2xl border border-slate-200 flex items-center justify-between group hover:border-indigo-500 transition-all">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center">
                       <QRCodeStyled 
@@ -527,6 +604,17 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
                         <option value="gradient">Gradient</option>
                       </select>
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Center Logo URL (Optional)</label>
+                    <input 
+                      type="text" 
+                      value={qrStyle.logoUrl || ''}
+                      onChange={(e) => setQrStyle({ ...qrStyle, logoUrl: e.target.value })}
+                      placeholder="https://example.com/logo.png"
+                      className="w-full h-12 px-4 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all text-sm"
+                    />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -667,17 +755,143 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
               </div>
             </div>
 
-            {/* Preview */}
+            {/* Preview & Testing System */}
             <div className="space-y-6">
               <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm sticky top-24">
-                <h3 className="font-display text-xl font-bold mb-6">Live Preview</h3>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-display text-xl font-bold">QR Testing System</h3>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => {
+                        setQrStyle({
+                          shape: 'square',
+                          colorType: 'solid',
+                          primaryColor: '#4f46e5',
+                          frameType: 'none',
+                          logoUrl: ''
+                        });
+                        setTestQrValue('TEST-VALUE-123');
+                      }}
+                      className="p-2 rounded-lg border-2 border-slate-100 text-slate-400 hover:border-slate-200 transition-all"
+                      title="Reset Testing System"
+                    >
+                      <History size={18} />
+                    </button>
+                    <button 
+                      onClick={() => setShowMobilePreview(!showMobilePreview)}
+                      className={`p-2 rounded-lg border-2 transition-all ${showMobilePreview ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-100 text-slate-400'}`}
+                      title="Toggle Mobile Preview"
+                    >
+                      <Smartphone size={18} />
+                    </button>
+                  </div>
+                </div>
                 
                 <div className="flex flex-col items-center gap-8">
-                  <div className="p-8 bg-slate-50 rounded-3xl border border-slate-100 w-full flex flex-col items-center">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-6">QR Code Preview</p>
-                    <QRCodeStyled value="PREVIEW-CODE" style={qrStyle} size={200} />
-                    <p className="mt-6 font-mono text-xs font-bold text-slate-400">VALUE: PREVIEW-CODE</p>
-                  </div>
+                  {showMobilePreview ? (
+                    <div className="relative w-[280px] h-[560px] bg-slate-900 rounded-[3rem] border-[8px] border-slate-800 shadow-2xl overflow-hidden flex flex-col">
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-800 rounded-b-2xl z-20" />
+                      <div className="flex-grow flex flex-col items-center justify-center p-6 bg-white">
+                        <div className="text-center mb-8">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Scavenger Hunt</p>
+                          <h4 className="font-display font-bold text-slate-900">Clue Found!</h4>
+                        </div>
+                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                          <QRCodeStyled value={testQrValue} style={qrStyle} size={180} />
+                        </div>
+                        <p className="mt-6 text-center text-xs text-slate-500 italic">"Scan this code to unlock the next clue in your adventure."</p>
+                      </div>
+                      <div className="h-16 bg-slate-50 border-t border-slate-100 flex items-center justify-center gap-8">
+                        <div className="w-10 h-10 rounded-full bg-slate-200" />
+                        <div className="w-10 h-10 rounded-full bg-slate-200" />
+                        <div className="w-10 h-10 rounded-full bg-slate-200" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-8 bg-slate-50 rounded-3xl border border-slate-100 w-full flex flex-col items-center">
+                      <div className="w-full flex items-center justify-between mb-6">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Live QR Preview</p>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${qrStyle.primaryColor === '#ffffff' ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            {qrStyle.primaryColor === '#ffffff' ? 'Low Contrast' : 'Scannable'}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <QRCodeStyled value={testQrValue} style={qrStyle} size={200} />
+                      
+                      <div className="mt-8 w-full space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Test QR Data</label>
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              value={testQrValue}
+                              onChange={(e) => setTestQrValue(e.target.value)}
+                              className="w-full h-10 pl-4 pr-10 rounded-lg border-2 border-slate-200 focus:border-indigo-500 outline-none transition-all text-xs font-mono"
+                            />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300">
+                              <Type size={14} />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => {
+                              const svg = document.querySelector('.sticky svg');
+                              if (svg) {
+                                const svgData = new XMLSerializer().serializeToString(svg);
+                                const canvas = document.createElement('canvas');
+                                const ctx = canvas.getContext('2d');
+                                const img = new Image();
+                                img.onload = () => {
+                                  canvas.width = 1000;
+                                  canvas.height = 1000;
+                                  ctx?.drawImage(img, 0, 0, 1000, 1000);
+                                  const pngUrl = canvas.toDataURL('image/png');
+                                  const downloadLink = document.createElement('a');
+                                  downloadLink.href = pngUrl;
+                                  downloadLink.download = `qr-test-${testQrValue}.png`;
+                                  document.body.appendChild(downloadLink);
+                                  downloadLink.click();
+                                  document.body.removeChild(downloadLink);
+                                };
+                                img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+                              }
+                            }}
+                            className="flex-grow h-10 rounded-lg bg-slate-800 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <Download size={14} />
+                            Download PNG
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setScanResult({ success: true, message: `Successfully scanned: ${testQrValue}` });
+                              setTimeout(() => setScanResult(null), 3000);
+                            }}
+                            className="h-10 px-4 rounded-lg border-2 border-indigo-600 text-indigo-600 text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-50 transition-colors"
+                          >
+                            Test Scan
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <AnimatePresence>
+                    {scanResult && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="absolute bottom-4 left-4 right-4 p-3 bg-emerald-500 text-white rounded-xl text-center text-xs font-bold shadow-lg z-50"
+                      >
+                        {scanResult.message}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   <div className="p-8 bg-slate-900 rounded-3xl border border-slate-800 w-full flex flex-col items-center overflow-hidden relative min-h-[300px]">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-6 z-10">Scanner Preview</p>
@@ -756,8 +970,8 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
                   >
                     <option value="all">All Teams</option>
                     <option value="shared">Shared Only</option>
-                    {teams.map(t => (
-                      <option key={t.id} value={t.id}>Team: {t.name || t.loginId}</option>
+                    {teams.map((t, idx) => (
+                      <option key={`print-team-opt-${t.id}-${idx}`} value={t.id}>Team: {t.name || t.loginId}</option>
                     ))}
                   </select>
                 </div>
@@ -772,10 +986,10 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
                   if (printFilterTeamId === 'shared') return !c.teamId;
                   return c.teamId === printFilterTeamId;
                 })
-                .map((clue) => (
-                <div key={clue.id} className="flex flex-col items-center gap-4 p-6 border-2 border-slate-200 rounded-2xl break-inside-avoid">
+                .map((clue, idx) => (
+                <div key={`print-clue-${clue.id}-${idx}`} className="flex flex-col items-center gap-4 p-6 border-2 border-slate-200 rounded-2xl break-inside-avoid">
                   <QRCodeStyled 
-                    value={clue.code} 
+                    value={game.websiteOnlyScanning ? `HUNT-${clue.code}` : clue.code} 
                     style={clue.qrStyle ? JSON.parse(clue.qrStyle) : qrStyle} 
                     size={200} 
                   />
@@ -794,12 +1008,267 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {teams
                   .filter(t => printFilterTeamId === 'all' || t.id === printFilterTeamId)
-                  .map(t => (
-                  <div key={t.id} className="p-4 border-2 border-slate-200 rounded-xl text-center">
+                  .map((t, idx) => (
+                  <div key={`print-team-id-${t.id}-${idx}`} className="p-4 border-2 border-slate-200 rounded-xl text-center">
                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{t.name || 'TEAM'}</p>
                     <p className="text-2xl font-mono font-bold text-indigo-600">{t.loginId}</p>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'terms' && termsData && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Stats Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
+                    <BarChart3 size={24} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Acceptance Rate</p>
+                    <p className="text-2xl font-bold text-slate-900">
+                      {termsData.stats.total > 0 
+                        ? Math.round((termsData.stats.accepted / termsData.stats.total) * 100) 
+                        : 0}%
+                    </p>
+                  </div>
+                </div>
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-indigo-600 h-full transition-all duration-1000"
+                    style={{ width: `${termsData.stats.total > 0 ? (termsData.stats.accepted / termsData.stats.total) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
+                    <Users size={24} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Accepted Teams</p>
+                    <p className="text-2xl font-bold text-slate-900">{termsData.stats.accepted}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center">
+                    <Shield size={24} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Active Version</p>
+                    <p className="text-2xl font-bold text-slate-900">
+                      {termsData.versions.find(v => v.isActive)?.version || 'None'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Edit Terms */}
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileEdit size={18} className="text-indigo-600" />
+                    <h3 className="font-bold text-slate-900 uppercase tracking-widest text-xs">Update Terms & Conditions</h3>
+                  </div>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">New Version Number</label>
+                    <input 
+                      type="text"
+                      placeholder="e.g. 1.1"
+                      value={newTermsVersion}
+                      onChange={(e) => setNewTermsVersion(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Content (Markdown Support)</label>
+                    <textarea 
+                      rows={12}
+                      placeholder="# Terms and Conditions..."
+                      value={newTermsContent}
+                      onChange={(e) => setNewTermsContent(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all text-sm font-medium font-mono"
+                    />
+                  </div>
+                  <button
+                    onClick={handleUpdateTerms}
+                    disabled={!newTermsContent || !newTermsVersion}
+                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
+                  >
+                    Publish New Version
+                  </button>
+                </div>
+              </div>
+
+              {/* Version History */}
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <History size={18} className="text-indigo-600" />
+                    <h3 className="font-bold text-slate-900 uppercase tracking-widest text-xs">Version History</h3>
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {termsData.versions.map((v) => (
+                    <div key={v.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-bold text-slate-900 text-sm">Version {v.version}</span>
+                          {v.isActive && (
+                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-600 text-[10px] font-bold rounded-full uppercase tracking-tighter">Active</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400">{new Date(v.createdDate).toLocaleString()}</p>
+                      </div>
+                      <button className="p-2 text-slate-400 hover:text-indigo-600 transition-colors">
+                        <Eye size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Acceptance Logs */}
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users size={18} className="text-indigo-600" />
+                  <h3 className="font-bold text-slate-900 uppercase tracking-widest text-xs">Acceptance Logs</h3>
+                </div>
+                <button className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all">
+                  <Download size={14} />
+                  Export CSV
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/50">
+                      <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Team Name</th>
+                      <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Accepted Date</th>
+                      <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Version</th>
+                      <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">IP Address</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {termsData.logs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className="font-bold text-slate-700 text-sm">{log.name || 'Unnamed Team'}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-xs text-slate-500">{new Date(log.termsAcceptedDate).toLocaleString()}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-md">v{log.termsVersion}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-xs font-mono text-slate-400">{log.termsIpAddress}</span>
+                        </td>
+                      </tr>
+                    ))}
+                    {termsData.logs.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic text-sm">
+                          No acceptance logs found yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'settings' && admin.isMain && (
+          <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                <Settings size={18} className="text-indigo-600" />
+                <h3 className="font-bold text-slate-900 uppercase tracking-widest text-xs">Game Security & Scanning</h3>
+              </div>
+              <div className="p-6 space-y-6">
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                  <div>
+                    <p className="font-bold text-sm">Website-Only Scanning</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">QR codes only work in built-in scanner</p>
+                  </div>
+                  <button 
+                    onClick={() => handleUpdateSettings({ websiteOnlyScanning: !game.websiteOnlyScanning })}
+                    className={`w-12 h-6 rounded-full transition-all relative ${game.websiteOnlyScanning ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${game.websiteOnlyScanning ? 'right-1' : 'left-1'}`} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                  <div>
+                    <p className="font-bold text-sm">Fallback Mode</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Show plain text URL for emergencies</p>
+                  </div>
+                  <button 
+                    onClick={() => handleUpdateSettings({ fallbackMode: !game.fallbackMode })}
+                    className={`w-12 h-6 rounded-full transition-all relative ${game.fallbackMode ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${game.fallbackMode ? 'right-1' : 'left-1'}`} />
+                  </button>
+                </div>
+
+                {game.fallbackMode && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Fallback Message</label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        value={game.fallbackMessage || ''}
+                        onChange={(e) => setGame({ ...game, fallbackMessage: e.target.value })}
+                        className="flex-grow px-4 py-2 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+                        placeholder="e.g. If scanner not working, visit: hunt.com/clue"
+                      />
+                      <button 
+                        onClick={() => handleUpdateSettings({ fallbackMessage: game.fallbackMessage })}
+                        className="px-4 bg-indigo-600 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                <FileText size={18} className="text-indigo-600" />
+                <h3 className="font-bold text-slate-900 uppercase tracking-widest text-xs">Clue Display Settings</h3>
+              </div>
+              <div className="p-6 space-y-6">
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                  <div>
+                    <p className="font-bold text-sm">PDF Conversion</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Auto-generate PDF after scan</p>
+                  </div>
+                  <button 
+                    onClick={() => handleUpdateSettings({ pdfEnabled: !game.pdfEnabled })}
+                    className={`w-12 h-6 rounded-full transition-all relative ${game.pdfEnabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${game.pdfEnabled ? 'right-1' : 'left-1'}`} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -972,7 +1441,7 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
                     </div>
                   </div>
                   <div className="flex items-center justify-center p-2 bg-slate-50 rounded-xl border border-slate-100">
-                    <QRCodeStyled value={editingClue.code} style={qrStyle} size={80} />
+                    <QRCodeStyled value={game.websiteOnlyScanning ? `HUNT-${editingClue.code}` : editingClue.code} style={qrStyle} size={80} />
                   </div>
                 </div>
 
@@ -1010,12 +1479,70 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
         )}
       </AnimatePresence>
 
+      {/* Custom Modal */}
+      <AnimatePresence>
+        {modal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl"
+            >
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${modal.type === 'confirm' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                  {modal.type === 'confirm' ? <ShieldAlert size={32} /> : <CheckCircle2 size={32} />}
+                </div>
+                <div>
+                  <h3 className="text-xl font-display font-bold text-slate-900">
+                    {modal.type === 'confirm' ? 'Confirmation' : 'Notification'}
+                  </h3>
+                  <p className="text-slate-500 mt-2">{modal.message}</p>
+                </div>
+                <div className="flex gap-3 w-full mt-4">
+                  {modal.type === 'confirm' ? (
+                    <>
+                      <button 
+                        onClick={() => setModal(null)}
+                        className="flex-1 h-12 rounded-xl border-2 border-slate-100 font-bold text-slate-500 hover:bg-slate-50 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={modal.onConfirm}
+                        className="flex-1 h-12 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+                      >
+                        Confirm
+                      </button>
+                    </>
+                  ) : (
+                    <button 
+                      onClick={() => setModal(null)}
+                      className="w-full h-12 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+                    >
+                      Dismiss
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* QR Scanner Modal */}
       <AnimatePresence>
         {showScanner && (
           <QRScanner 
             onScan={handleTestScan} 
             onClose={() => setShowScanner(false)} 
+            fallbackMode={game.fallbackMode}
+            fallbackMessage={game.fallbackMessage}
           />
         )}
       </AnimatePresence>

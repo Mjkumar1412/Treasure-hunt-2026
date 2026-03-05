@@ -24,7 +24,11 @@ db.exec(`
     scannerStyle TEXT, -- JSON string of ScannerStyle
     allowedThemes TEXT, -- JSON string of ThemeType[]
     allowUserThemeChange INTEGER DEFAULT 1,
-    defaultTheme TEXT DEFAULT 'classic'
+    defaultTheme TEXT DEFAULT 'classic',
+    pdfEnabled INTEGER DEFAULT 1,
+    websiteOnlyScanning INTEGER DEFAULT 1,
+    fallbackMode INTEGER DEFAULT 0,
+    fallbackMessage TEXT
   );
 
   CREATE TABLE IF NOT EXISTS clues (
@@ -49,7 +53,20 @@ db.exec(`
     isLoggedIn INTEGER DEFAULT 0,
     socketId TEXT,
     qrStyle TEXT, -- JSON string of QRStyle
+    termsAccepted INTEGER DEFAULT 0,
+    termsAcceptedDate TEXT,
+    termsVersion TEXT,
+    termsIpAddress TEXT,
+    termsUserAgent TEXT,
     FOREIGN KEY(gameId) REFERENCES games(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS terms_versions (
+    id TEXT PRIMARY KEY,
+    version TEXT NOT NULL,
+    content TEXT NOT NULL,
+    createdDate TEXT NOT NULL,
+    isActive INTEGER DEFAULT 1
   );
 
   CREATE TABLE IF NOT EXISTS scans (
@@ -68,11 +85,63 @@ db.exec(`
   );
 `);
 
+// Migrations for games table
+const columns = db.prepare("PRAGMA table_info(games)").all() as any[];
+const columnNames = columns.map(c => c.name);
+
+if (!columnNames.includes('pdfEnabled')) {
+  db.exec("ALTER TABLE games ADD COLUMN pdfEnabled INTEGER DEFAULT 1");
+}
+if (!columnNames.includes('websiteOnlyScanning')) {
+  db.exec("ALTER TABLE games ADD COLUMN websiteOnlyScanning INTEGER DEFAULT 1");
+}
+if (!columnNames.includes('fallbackMode')) {
+  db.exec("ALTER TABLE games ADD COLUMN fallbackMode INTEGER DEFAULT 0");
+}
+
+// Ensure all existing games have PDF generation enabled
+db.exec("UPDATE games SET pdfEnabled = 1 WHERE pdfEnabled IS NULL OR pdfEnabled = 0");
+if (!columnNames.includes('fallbackMessage')) {
+  db.exec("ALTER TABLE games ADD COLUMN fallbackMessage TEXT");
+}
+
+// Migrations for teams table
+const teamColumns = db.prepare("PRAGMA table_info(teams)").all() as any[];
+const teamColumnNames = teamColumns.map(c => c.name);
+
+if (!teamColumnNames.includes('termsAccepted')) {
+  db.exec("ALTER TABLE teams ADD COLUMN termsAccepted INTEGER DEFAULT 0");
+}
+if (!teamColumnNames.includes('termsAcceptedDate')) {
+  db.exec("ALTER TABLE teams ADD COLUMN termsAcceptedDate TEXT");
+}
+if (!teamColumnNames.includes('termsVersion')) {
+  db.exec("ALTER TABLE teams ADD COLUMN termsVersion TEXT");
+}
+if (!teamColumnNames.includes('termsIpAddress')) {
+  db.exec("ALTER TABLE teams ADD COLUMN termsIpAddress TEXT");
+}
+if (!teamColumnNames.includes('termsUserAgent')) {
+  db.exec("ALTER TABLE teams ADD COLUMN termsUserAgent TEXT");
+}
+
 // Seed main admin if not exists
 const seedAdmin = db.prepare("INSERT OR IGNORE INTO admins (username, password, isMain) VALUES (?, ?, ?)");
 seedAdmin.run("MJK", "Mjk@1412", 1);
 // Ensure the requested admin exists and has the correct password
 db.prepare("UPDATE admins SET password = ? WHERE username = ?").run("Mjk@1412", "MJK");
+
+// Seed default terms if none exist
+const termsCount = db.prepare("SELECT COUNT(*) as count FROM terms_versions").get() as { count: number };
+if (termsCount.count === 0) {
+  db.prepare("INSERT INTO terms_versions (id, version, content, createdDate, isActive) VALUES (?, ?, ?, ?, ?)").run(
+    'v1',
+    '1.0',
+    '# TREASURE HUNT - TERMS & CONDITIONS\n\n## SECTION 1: GAME RULES\n1.1 Players must use their unique 4-digit Login ID to access the game.\n1.2 Only one device can be logged in per team at any time.\n1.3 Clues must be scanned in the correct sequence.\n1.4 The first team to scan the final QR code wins the treasure.\n1.5 Game ends immediately when final code is scanned by any team.\n\n## SECTION 2: CODE OF CONDUCT\n2.1 Players must be respectful to other teams and event staff.\n2.2 No physical contact or aggressive behavior allowed.\n2.3 Do not block or hide QR codes from other teams.\n2.4 Fair play is expected from all participants.\n\n## SECTION 3: SAFETY GUIDELINES\n3.1 Players participate at their own risk.\n3.2 Stay within designated game areas.\n3.3 Be aware of surroundings (traffic, obstacles, etc.).\n3.4 In case of emergency, contact event staff immediately.',
+    new Date().toISOString(),
+    1
+  );
+}
 
 async function startServer() {
   const app = express();
@@ -109,6 +178,68 @@ async function startServer() {
       ...admin,
       isMain: !!admin.isMain
     });
+  });
+
+  // Terms and Conditions
+  app.get("/api/terms/active", (req, res) => {
+    const terms = db.prepare("SELECT * FROM terms_versions WHERE isActive = 1 ORDER BY createdDate DESC LIMIT 1").get();
+    res.json(terms);
+  });
+
+  app.post("/api/teams/:id/accept-terms", (req, res) => {
+    const { id } = req.params;
+    const { version, ipAddress, userAgent } = req.body;
+    
+    db.prepare(`
+      UPDATE teams 
+      SET termsAccepted = 1, 
+          termsAcceptedDate = ?, 
+          termsVersion = ?, 
+          termsIpAddress = ?, 
+          termsUserAgent = ? 
+      WHERE id = ?
+    `).run(new Date().toISOString(), version, ipAddress, userAgent, id);
+    
+    res.json({ success: true });
+  });
+
+  app.get("/api/admin/terms", (req, res) => {
+    const { requester } = req.query;
+    const admin = db.prepare("SELECT * FROM admins WHERE username = ?").get(requester) as any;
+    if (!admin) return res.status(403).json({ error: "Unauthorized" });
+
+    const versions = db.prepare("SELECT * FROM terms_versions ORDER BY createdDate DESC").all();
+    const stats = db.prepare(`
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN termsAccepted = 1 THEN 1 ELSE 0 END) as accepted
+      FROM teams
+    `).get();
+    
+    const logs = db.prepare(`
+      SELECT id, name, termsAcceptedDate, termsVersion, termsIpAddress 
+      FROM teams 
+      WHERE termsAccepted = 1 
+      ORDER BY termsAcceptedDate DESC
+    `).all();
+
+    res.json({ versions, stats, logs });
+  });
+
+  app.post("/api/admin/terms", (req, res) => {
+    const { requester, content, version } = req.body;
+    const admin = db.prepare("SELECT * FROM admins WHERE username = ?").get(requester) as any;
+    if (!admin) return res.status(403).json({ error: "Unauthorized" });
+
+    // Deactivate current active version
+    db.prepare("UPDATE terms_versions SET isActive = 0").run();
+
+    // Insert new version
+    const id = Math.random().toString(36).substring(2, 11);
+    db.prepare("INSERT INTO terms_versions (id, version, content, createdDate, isActive) VALUES (?, ?, ?, ?, 1)")
+      .run(id, version, content, new Date().toISOString());
+
+    res.json({ success: true });
   });
 
   // Admin Management (Main Admin Only)
@@ -165,7 +296,11 @@ async function startServer() {
   });
 
   app.patch("/api/games/:id", (req, res) => {
-    const { startTime, qrStyle, scannerStyle, allowedThemes, allowUserThemeChange, defaultTheme, requester } = req.body;
+    const { 
+      startTime, qrStyle, scannerStyle, allowedThemes, allowUserThemeChange, defaultTheme, 
+      pdfEnabled, websiteOnlyScanning, fallbackMode, fallbackMessage,
+      requester 
+    } = req.body;
     const admin = db.prepare("SELECT * FROM admins WHERE username = ?").get(requester) as any;
     if (!admin || !admin.isMain) return res.status(403).json({ error: "Unauthorized" });
 
@@ -178,6 +313,10 @@ async function startServer() {
     if (allowedThemes !== undefined) { updates.push("allowedThemes = ?"); params.push(JSON.stringify(allowedThemes)); }
     if (allowUserThemeChange !== undefined) { updates.push("allowUserThemeChange = ?"); params.push(allowUserThemeChange ? 1 : 0); }
     if (defaultTheme !== undefined) { updates.push("defaultTheme = ?"); params.push(defaultTheme); }
+    if (pdfEnabled !== undefined) { updates.push("pdfEnabled = ?"); params.push(pdfEnabled ? 1 : 0); }
+    if (websiteOnlyScanning !== undefined) { updates.push("websiteOnlyScanning = ?"); params.push(websiteOnlyScanning ? 1 : 0); }
+    if (fallbackMode !== undefined) { updates.push("fallbackMode = ?"); params.push(fallbackMode ? 1 : 0); }
+    if (fallbackMessage !== undefined) { updates.push("fallbackMessage = ?"); params.push(fallbackMessage); }
 
     if (updates.length === 0) return res.json({ success: true });
 
@@ -187,7 +326,7 @@ async function startServer() {
   });
 
   app.post("/api/games", (req, res) => {
-    const { id, name, mode, startTime, requester } = req.body;
+    const { id, name, mode, startTime, requester, pdfEnabled, websiteOnlyScanning, fallbackMode, fallbackMessage, qrStyle, scannerStyle } = req.body;
     
     // Check if sub-admin is trying to schedule
     if (startTime) {
@@ -195,7 +334,18 @@ async function startServer() {
       if (!admin || !admin.isMain) return res.status(403).json({ error: "Only main admin can schedule games" });
     }
 
-    db.prepare("INSERT INTO games (id, name, mode, startTime) VALUES (?, ?, ?, ?)").run(id, name, mode, startTime);
+    db.prepare(`
+      INSERT INTO games (id, name, mode, startTime, pdfEnabled, websiteOnlyScanning, fallbackMode, fallbackMessage, qrStyle, scannerStyle) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id, name, mode, startTime, 
+      pdfEnabled !== undefined ? (pdfEnabled ? 1 : 0) : 1, 
+      websiteOnlyScanning !== undefined ? (websiteOnlyScanning ? 1 : 0) : 1, 
+      fallbackMode !== undefined ? (fallbackMode ? 1 : 0) : 0, 
+      fallbackMessage || null,
+      qrStyle ? JSON.stringify(qrStyle) : null,
+      scannerStyle ? JSON.stringify(scannerStyle) : null
+    );
     res.json({ success: true });
   });
 
@@ -287,7 +437,9 @@ async function startServer() {
     if (game.status !== 'active') return res.status(400).json({ error: "Game is not active" });
 
     // Find the clue with this code
-    const clue = db.prepare("SELECT * FROM clues WHERE code = ? AND gameId = ?").get(code, game.id) as any;
+    // The code in the QR is "HUNT-{token}"
+    const actualCode = code.startsWith("HUNT-") ? code.substring(5) : code;
+    const clue = db.prepare("SELECT * FROM clues WHERE code = ? AND gameId = ?").get(actualCode, game.id) as any;
 
     if (!clue) return res.status(404).json({ error: "Invalid QR Code" });
 

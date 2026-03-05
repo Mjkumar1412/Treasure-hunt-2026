@@ -20,7 +20,7 @@ interface QRCodeStyledProps {
 
 const QRCodeStyled: React.FC<QRCodeStyledProps> = ({ value, style, size = 300, className }) => {
   const ref = useRef<HTMLDivElement>(null);
-  const qrCode = useRef<QRCodeStyling>();
+  const qrCode = useRef<QRCodeStyling | null>(null);
 
   useEffect(() => {
     const options: Options = {

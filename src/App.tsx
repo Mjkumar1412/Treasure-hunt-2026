@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Game, Team, Admin } from './types';
-import { Map } from 'lucide-react';
+import { Map, Lock } from 'lucide-react';
 import socket from './lib/socket';
 import ParticipantLogin from './views/ParticipantLogin';
 import TeamSetup from './views/TeamSetup';
@@ -11,7 +11,9 @@ import AdminDashboard from './views/AdminDashboard';
 import AdminGameEditor from './views/AdminGameEditor';
 import AdminMonitoring from './views/AdminMonitoring';
 
-type View = 'participant-login' | 'team-setup' | 'participant-dashboard' | 'admin-login' | 'admin-dashboard' | 'admin-editor' | 'admin-monitoring';
+import TermsAndConditions from './components/TermsAndConditions';
+
+type View = 'participant-login' | 'terms-and-conditions' | 'team-setup' | 'participant-dashboard' | 'admin-login' | 'admin-dashboard' | 'admin-editor' | 'admin-monitoring';
 
 import { ThemeProvider } from './ThemeContext';
 
@@ -21,6 +23,7 @@ export default function App() {
   const [admin, setAdmin] = useState<Admin | null>(null);
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [logoutMessage, setLogoutMessage] = useState<string | null>(null);
 
   useEffect(() => {
     // Check local storage for sessions
@@ -35,14 +38,22 @@ export default function App() {
         const t = JSON.parse(savedTeam);
         setTeam(t);
         socket.emit('register_team', t.id);
-        setView(t.name ? 'participant-dashboard' : 'team-setup');
+        
+        if (!t.termsAccepted) {
+          setView('terms-and-conditions');
+        } else {
+          setView(t.name ? 'participant-dashboard' : 'team-setup');
+        }
       }
       setLoading(false);
     }, 1500);
 
     socket.on('force_logout', ({ message }) => {
-      alert(message);
-      handleLogout();
+      setLogoutMessage(message);
+      setTimeout(() => {
+        handleLogout();
+        setLogoutMessage(null);
+      }, 3000);
     });
 
     return () => {
@@ -65,8 +76,39 @@ export default function App() {
           setTeam(t);
           localStorage.setItem('team', JSON.stringify(t));
           socket.emit('register_team', t.id);
-          setView(t.name ? 'participant-dashboard' : 'team-setup');
+          
+          if (!t.termsAccepted) {
+            setView('terms-and-conditions');
+          } else {
+            setView(t.name ? 'participant-dashboard' : 'team-setup');
+          }
         }} onAdminClick={() => setView('admin-login')} />;
+      
+      case 'terms-and-conditions':
+        return team && <TermsAndConditions 
+          onAccept={async (version) => {
+            try {
+              const res = await fetch(`/api/teams/${team.id}/accept-terms`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  version,
+                  ipAddress: '127.0.0.1', // In a real app, get this from server or a service
+                  userAgent: navigator.userAgent
+                })
+              });
+              if (res.ok) {
+                const updatedTeam = { ...team, termsAccepted: true };
+                setTeam(updatedTeam);
+                localStorage.setItem('team', JSON.stringify(updatedTeam));
+                setView(updatedTeam.name ? 'participant-dashboard' : 'team-setup');
+              }
+            } catch (err) {
+              console.error('Failed to accept terms:', err);
+            }
+          }}
+          onDecline={() => handleLogout()}
+        />;
       
       case 'team-setup':
         return team && <TeamSetup team={team} onComplete={(updatedTeam) => {
@@ -127,6 +169,24 @@ export default function App() {
   return (
     <ThemeProvider>
       <div className="min-h-screen flex flex-col">
+        <AnimatePresence>
+          {logoutMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] w-full max-w-md px-4"
+            >
+              <div className="bg-red-500 text-white p-4 rounded-2xl shadow-2xl flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Lock size={20} />
+                </div>
+                <p className="text-sm font-bold">{logoutMessage}</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence mode="wait">
           {loading ? (
             <motion.div

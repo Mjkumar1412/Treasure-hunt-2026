@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Settings, Activity, LogOut, Users, Trophy, Calendar, LayoutGrid, Trash2, ShieldCheck, ShieldAlert, UserPlus, Key, Lock, Palette } from 'lucide-react';
-import { Game, Admin } from '../types';
+import { Game, Admin, GameMode } from '../types';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
 
 interface AdminDashboardProps {
@@ -15,15 +15,23 @@ const StatCard: React.FC<{ label: string; value: number; icon: React.ReactNode; 
   const [count, setCount] = useState(0);
 
   useEffect(() => {
+    const end = Number(value);
+    if (isNaN(end)) {
+      setCount(0);
+      return;
+    }
+    
     let start = 0;
-    const end = value;
-    if (start === end) return;
+    if (start === end) {
+      setCount(end);
+      return;
+    }
     
-    let totalDuration = 1000;
-    let incrementTime = (totalDuration / end);
+    const totalDuration = 1000;
+    const incrementTime = Math.max(10, totalDuration / Math.abs(end || 1));
     
-    let timer = setInterval(() => {
-      start += 1;
+    const timer = setInterval(() => {
+      start += end > 0 ? 1 : -1;
       setCount(start);
       if (start === end) clearInterval(timer);
     }, incrementTime);
@@ -56,8 +64,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showThemeSwitcher, setShowThemeSwitcher] = useState(false);
-  const [newGame, setNewGame] = useState({ name: '', mode: 'team' as const, startTime: '' });
+  const [newGame, setNewGame] = useState({ name: '', mode: 'team' as GameMode, startTime: '' });
   const [newAdmin, setNewAdmin] = useState({ username: '', password: '' });
+  const [modal, setModal] = useState<{
+    type: 'confirm' | 'alert';
+    message: string;
+    onConfirm?: () => void;
+  } | null>(null);
 
   useEffect(() => {
     fetchGames();
@@ -84,11 +97,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
     const res = await fetch('/api/games', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...newGame, id, requester: admin.username }),
+      body: JSON.stringify({ 
+        ...newGame, 
+        id, 
+        requester: admin.username,
+        pdfEnabled: true,
+        qrStyle: {
+          shape: 'square',
+          colorType: 'gradient',
+          primaryColor: '#3b82f6',
+          secondaryColor: '#10b981',
+          frameType: 'none'
+        }
+      }),
     });
     if (!res.ok) {
       const data = await res.json();
-      alert(data.error || 'Failed to create game');
+      setModal({
+        type: 'alert',
+        message: data.error || 'Failed to create game'
+      });
     } else {
       setShowCreateModal(false);
       fetchGames();
@@ -96,9 +124,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
   };
 
   const handleDeleteGame = async (id: string) => {
-    if (!confirm('Are you sure? This will delete all clues and teams for this game.')) return;
-    await fetch(`/api/games/${id}`, { method: 'DELETE' });
-    fetchGames();
+    setModal({
+      type: 'confirm',
+      message: 'Are you sure? This will delete all clues and teams for this game.',
+      onConfirm: async () => {
+        await fetch(`/api/games/${id}`, { method: 'DELETE' });
+        fetchGames();
+        setModal(null);
+      }
+    });
   };
 
   const handleCreateAdmin = async (e: React.FormEvent) => {
@@ -110,7 +144,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
     });
     if (!res.ok) {
       const data = await res.json();
-      alert(data.error || 'Failed to create admin');
+      setModal({
+        type: 'alert',
+        message: data.error || 'Failed to create admin'
+      });
     } else {
       setNewAdmin({ username: '', password: '' });
       fetchAdmins();
@@ -118,9 +155,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
   };
 
   const handleDeleteAdmin = async (username: string) => {
-    if (!confirm(`Delete sub-admin ${username}?`)) return;
-    await fetch(`/api/admins/${username}?requester=${admin.username}`, { method: 'DELETE' });
-    fetchAdmins();
+    setModal({
+      type: 'confirm',
+      message: `Delete sub-admin ${username}?`,
+      onConfirm: async () => {
+        await fetch(`/api/admins/${username}?requester=${admin.username}`, { method: 'DELETE' });
+        fetchAdmins();
+        setModal(null);
+      }
+    });
   };
 
   return (
@@ -236,9 +279,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
               <p className="text-slate-400 font-medium">No games created yet. Start by creating your first treasure hunt!</p>
             </div>
           ) : (
-            games.map((game) => (
+            games.map((game, idx) => (
               <motion.div 
-                key={game.id}
+                key={`game-${game.id}-${idx}`}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-white rounded-3xl p-6 border border-slate-200 hover:border-indigo-500 transition-all group"
@@ -254,12 +297,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
                     <div className="text-[10px] font-mono font-bold text-slate-400 uppercase">
                       {game.mode} mode
                     </div>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleDeleteGame(game.id); }}
-                      className="p-1 text-slate-300 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {admin.isMain && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleDeleteGame(game.id); }}
+                        className="p-1 text-slate-300 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -483,6 +528,62 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
       {showThemeSwitcher && (
         <ThemeSwitcher onClose={() => setShowThemeSwitcher(false)} />
       )}
+
+      {/* Custom Modal */}
+      <AnimatePresence>
+        {modal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl"
+            >
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${modal.type === 'confirm' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                  {modal.type === 'confirm' ? <ShieldAlert size={32} /> : <ShieldCheck size={32} />}
+                </div>
+                <div>
+                  <h3 className="text-xl font-display font-bold text-slate-900">
+                    {modal.type === 'confirm' ? 'Confirmation' : 'Notification'}
+                  </h3>
+                  <p className="text-slate-500 mt-2">{modal.message}</p>
+                </div>
+                <div className="flex gap-3 w-full mt-4">
+                  {modal.type === 'confirm' ? (
+                    <>
+                      <button 
+                        onClick={() => setModal(null)}
+                        className="flex-1 h-12 rounded-xl border-2 border-slate-100 font-bold text-slate-500 hover:bg-slate-50 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={modal.onConfirm}
+                        className="flex-1 h-12 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+                      >
+                        Confirm
+                      </button>
+                    </>
+                  ) : (
+                    <button 
+                      onClick={() => setModal(null)}
+                      className="w-full h-12 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+                    >
+                      Dismiss
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

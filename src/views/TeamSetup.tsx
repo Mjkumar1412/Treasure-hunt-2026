@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Users, Plus, Trash2, ArrowRight } from 'lucide-react';
+import { Users, Plus, Trash2, ArrowRight, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { Team } from '../types';
 
 interface TeamSetupProps {
@@ -12,6 +12,7 @@ const TeamSetup: React.FC<TeamSetupProps> = ({ team, onComplete }) => {
   const [teamName, setTeamName] = useState('');
   const [members, setMembers] = useState<string[]>(['']);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const addMember = () => setMembers([...members, '']);
   const removeMember = (index: number) => {
@@ -52,7 +53,8 @@ const TeamSetup: React.FC<TeamSetupProps> = ({ team, onComplete }) => {
         members: JSON.stringify(filteredMembers)
       });
     } catch (err) {
-      alert('Error saving team info');
+      setError('Error saving team info. Please try again.');
+      setTimeout(() => setError(null), 3000);
     } finally {
       setLoading(false);
     }
@@ -61,6 +63,18 @@ const TeamSetup: React.FC<TeamSetupProps> = ({ team, onComplete }) => {
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6 flex flex-col items-center pt-[calc(1rem+env(safe-area-inset-top))]">
       <div className="w-full max-w-md">
+        {/* Error Notification */}
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 bg-red-500 text-white rounded-2xl shadow-lg flex items-center gap-3"
+          >
+            <ShieldAlert size={20} />
+            <p className="text-sm font-bold">{error}</p>
+          </motion.div>
+        )}
+
         <div className="mb-8 text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-500 text-white mb-4 shadow-lg shadow-indigo-200">
             <Users size={32} />
