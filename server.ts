@@ -1,4 +1,5 @@
 import express from "express";
+import "dotenv/config";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { createServer as createViteServer } from "vite";
