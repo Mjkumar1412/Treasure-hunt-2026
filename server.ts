@@ -15,7 +15,28 @@ const supabaseUrl = process.env.SUPABASE_URL || "";
 const supabaseKey = process.env.SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+async function bootstrapAdmin() {
+  const username = "MEDISETTY JYOTISWARA KUMAR";
+  const password = "Mjk@1412";
+
+  const { data: existing } = await supabase
+    .from("admins")
+    .select("*")
+    .eq("username", username)
+    .single();
+
+  if (!existing) {
+    console.log("Bootstrapping main admin...");
+    await supabase.from("admins").insert({
+      username,
+      password,
+      isMain: true
+    });
+  }
+}
+
 async function startServer() {
+  await bootstrapAdmin();
   const app = express();
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
