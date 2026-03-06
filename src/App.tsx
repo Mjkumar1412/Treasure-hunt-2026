@@ -16,6 +16,7 @@ import TermsAndConditions from './components/TermsAndConditions';
 type View = 'participant-login' | 'terms-and-conditions' | 'team-setup' | 'participant-dashboard' | 'admin-login' | 'admin-dashboard' | 'admin-editor' | 'admin-monitoring';
 
 import { ThemeProvider } from './ThemeContext';
+import { apiFetch } from './utils/api';
 
 export default function App() {
   const [view, setView] = useState<View>('participant-login');
@@ -88,7 +89,7 @@ export default function App() {
         return team && <TermsAndConditions 
           onAccept={async (version) => {
             try {
-              const res = await fetch(`/api/teams/${team.id}/accept-terms`, {
+              const res = await apiFetch(`/api/teams/${team.id}/accept-terms`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

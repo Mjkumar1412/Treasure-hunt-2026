@@ -4,6 +4,7 @@ import { ScrollText, Check, X, ShieldCheck, AlertCircle, Loader2 } from 'lucide-
 import Markdown from 'react-markdown';
 import { TermsVersion } from '../types';
 import confetti from 'canvas-confetti';
+import { apiFetch } from '../utils/api';
 
 interface TermsAndConditionsProps {
   onAccept: (version: string) => void;
@@ -18,7 +19,7 @@ const TermsAndConditions: React.FC<TermsAndConditionsProps> = ({ onAccept, onDec
   const [showDeclineConfirm, setShowDeclineConfirm] = useState(false);
 
   useEffect(() => {
-    fetch('/api/terms/active')
+    apiFetch('/api/terms/active')
       .then(res => res.json())
       .then(data => {
         setTerms(data);

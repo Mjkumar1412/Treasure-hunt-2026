@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { ArrowLeft, Activity, Users, Trophy, Clock, MapPin, Search } from 'lucide-react';
 import { Game, Team } from '../types';
 import socket from '../lib/socket';
+import { apiFetch } from '../utils/api';
 
 interface AdminMonitoringProps {
   gameId: string;
@@ -34,8 +35,8 @@ const AdminMonitoring: React.FC<AdminMonitoringProps> = ({ gameId, onBack }) => 
 
   const fetchData = async () => {
     const [gRes, tRes] = await Promise.all([
-      fetch('/api/games'),
-      fetch(`/api/games/${gameId}/teams`)
+      apiFetch('/api/games'),
+      apiFetch(`/api/games/${gameId}/teams`)
     ]);
     const games = await gRes.json();
     setGame(games.find((x: Game) => x.id === gameId));

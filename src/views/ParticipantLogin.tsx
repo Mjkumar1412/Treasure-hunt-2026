@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { LogIn, ShieldCheck, Users, Activity } from 'lucide-react';
 import { Team } from '../types';
+import { apiFetch } from '../utils/api';
 
 interface ParticipantLoginProps {
   onLogin: (team: Team) => void;
@@ -24,7 +25,7 @@ const ParticipantLogin: React.FC<ParticipantLoginProps> = ({ onLogin, onAdminCli
     setError('');
 
     try {
-      const res = await fetch('/api/login', {
+      const res = await apiFetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ loginId }),

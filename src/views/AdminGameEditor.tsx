@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, Trash2, Printer, Play, Users, Key, FileText, CheckCirc
 import { Game, Clue, Team, Admin, QRStyle, ScannerStyle, QRShape, QRColorType, TermsVersion } from '../types';
 import QRCodeStyled from '../components/QRCodeStyled';
 import { QRScanner } from '../components/QRScanner';
+import { apiFetch } from '../utils/api';
 
 interface AdminGameEditorProps {
   admin: Admin;
@@ -69,10 +70,10 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
 
   const fetchData = async () => {
     const [gRes, cRes, tRes, termsRes] = await Promise.all([
-      fetch(`/api/games/${gameId}`),
-      fetch(`/api/games/${gameId}/clues`),
-      fetch(`/api/games/${gameId}/teams`),
-      fetch(`/api/admin/terms?requester=${admin.username}`)
+      apiFetch(`/api/games/${gameId}`),
+      apiFetch(`/api/games/${gameId}/clues`),
+      apiFetch(`/api/games/${gameId}/teams`),
+      apiFetch(`/api/admin/terms?requester=${admin.username}`)
     ]);
     const gameData = await gRes.json();
     setGame(gameData);
@@ -86,7 +87,7 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
 
   const handleUpdateTerms = async () => {
     if (!newTermsContent || !newTermsVersion) return;
-    await fetch('/api/admin/terms', {
+    await apiFetch('/api/admin/terms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -105,7 +106,7 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
       type: 'confirm',
       message: 'Are you sure you want to delete this clue?',
       onConfirm: async () => {
-        await fetch(`/api/clues/${id}?requester=${admin.username}`, { method: 'DELETE' });
+        await apiFetch(`/api/clues/${id}?requester=${admin.username}`, { method: 'DELETE' });
         fetchData();
         setModal(null);
       }
@@ -117,7 +118,7 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
     const id = Math.random().toString(36).substring(2, 9);
     const sequence = clues.filter(c => c.teamId === (newClue.teamId || null)).length + 1;
 
-    await fetch('/api/clues', {
+    await apiFetch('/api/clues', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...newClue, id, gameId, sequence, requester: admin.username }),
@@ -131,7 +132,7 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
     for (let i = 0; i < newTeamCount; i++) {
       const id = Math.random().toString(36).substring(2, 9);
       const loginId = Math.floor(1000 + Math.random() * 9000).toString();
-      await fetch('/api/teams', {
+      await apiFetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, gameId, loginId, requester: admin.username }),
@@ -145,7 +146,7 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
       type: 'confirm',
       message: 'Are you sure you want to start the game now?',
       onConfirm: async () => {
-        const res = await fetch(`/api/games/${gameId}/start`, { 
+        const res = await apiFetch(`/api/games/${gameId}/start`, { 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ requester: admin.username })
@@ -168,7 +169,7 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
     e.preventDefault();
     if (!editingClue) return;
 
-    await fetch(`/api/clues/${editingClue.id}`, {
+    await apiFetch(`/api/clues/${editingClue.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -203,7 +204,7 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
   };
 
   const handleUpdateStartTime = async (startTime: string) => {
-    await fetch(`/api/games/${gameId}`, {
+    await apiFetch(`/api/games/${gameId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ startTime, requester: admin.username }),
@@ -212,7 +213,7 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
   };
 
   const handleSaveCustomization = async () => {
-    await fetch(`/api/games/${gameId}`, {
+    await apiFetch(`/api/games/${gameId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -229,7 +230,7 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
   };
 
   const handleUpdateSettings = async (settings: Partial<Game>) => {
-    await fetch(`/api/games/${gameId}`, {
+    await apiFetch(`/api/games/${gameId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...settings, requester: admin.username }),
@@ -1352,7 +1353,7 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
                     </button>
                     <button 
                       onClick={async () => {
-                        await fetch(`/api/teams/${editingTeam.id}`, {
+                        await apiFetch(`/api/teams/${editingTeam.id}`, {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ 

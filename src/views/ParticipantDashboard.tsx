@@ -7,6 +7,7 @@ import { QRScanner } from '../components/QRScanner';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { downloadCluePDF, shareCluePDF } from '../utils/pdfGenerator';
 import socket from '../lib/socket';
+import { apiFetch } from '../utils/api';
 
 interface ParticipantDashboardProps {
   team: Team;
@@ -73,7 +74,7 @@ const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({ team, onLog
           clearInterval(timer);
           setCountdown('Game is starting...');
           // Auto-start the game if it's past the start time and still scheduled
-          fetch(`/api/games/${game.id}/start`, { method: 'POST' })
+          apiFetch(`/api/games/${game.id}/start`, { method: 'POST' })
             .then(() => fetchGame())
             .catch(err => {
               console.error("Failed to auto-start game", err);
@@ -97,20 +98,20 @@ const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({ team, onLog
   }, [game?.status]);
 
   const fetchGame = async () => {
-    const res = await fetch('/api/games');
+    const res = await apiFetch('/api/games');
     const games = await res.json();
     const g = games.find((x: Game) => x.id === team.gameId);
     setGame(g);
   };
 
   const fetchHistory = async () => {
-    const res = await fetch(`/api/teams/${team.id}/history`);
+    const res = await apiFetch(`/api/teams/${team.id}/history`);
     const data = await res.json();
     setHistory(data);
   };
 
   const fetchCurrentClue = async () => {
-    const res = await fetch(`/api/teams/${team.id}/current-clue`);
+    const res = await apiFetch(`/api/teams/${team.id}/current-clue`);
     const data = await res.json();
     setCurrentClue(data);
   };
@@ -126,7 +127,7 @@ const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({ team, onLog
     setSuccess(null);
 
     try {
-      const res = await fetch('/api/scan', {
+      const res = await apiFetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamId: team.id, code }),

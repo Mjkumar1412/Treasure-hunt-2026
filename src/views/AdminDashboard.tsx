@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Settings, Activity, LogOut, Users, Trophy, Calendar, LayoutGrid, Trash2, ShieldCheck, ShieldAlert, UserPlus, Key, Lock, Palette } from 'lucide-react';
 import { Game, Admin, GameMode } from '../types';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
+import { apiFetch } from '../utils/api';
 
 interface AdminDashboardProps {
   admin: Admin;
@@ -78,13 +79,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
   }, [admin]);
 
   const fetchGames = async () => {
-    const res = await fetch('/api/games');
+    const res = await apiFetch('/api/games');
     const data = await res.json();
     setGames(data);
   };
 
   const fetchAdmins = async () => {
-    const res = await fetch(`/api/admins?requester=${admin.username}`);
+    const res = await apiFetch(`/api/admins?requester=${admin.username}`);
     if (res.ok) {
       const data = await res.json();
       setAdmins(data);
@@ -94,7 +95,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
   const handleCreateGame = async (e: React.FormEvent) => {
     e.preventDefault();
     const id = Math.random().toString(36).substring(2, 9);
-    const res = await fetch('/api/games', {
+    const res = await apiFetch('/api/games', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -128,7 +129,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
       type: 'confirm',
       message: 'Are you sure? This will delete all clues and teams for this game.',
       onConfirm: async () => {
-        await fetch(`/api/games/${id}`, { method: 'DELETE' });
+        await apiFetch(`/api/games/${id}`, { method: 'DELETE' });
         fetchGames();
         setModal(null);
       }
@@ -137,7 +138,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
 
   const handleCreateAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch('/api/admins', {
+    const res = await apiFetch('/api/admins', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...newAdmin, requester: admin.username }),
@@ -159,7 +160,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
       type: 'confirm',
       message: `Delete sub-admin ${username}?`,
       onConfirm: async () => {
-        await fetch(`/api/admins/${username}?requester=${admin.username}`, { method: 'DELETE' });
+        await apiFetch(`/api/admins/${username}?requester=${admin.username}`, { method: 'DELETE' });
         fetchAdmins();
         setModal(null);
       }

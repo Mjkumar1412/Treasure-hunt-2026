@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { ShieldCheck, ArrowLeft, Lock } from 'lucide-react';
 import { Admin } from '../types';
+import { apiFetch } from '../utils/api';
 
 interface AdminLoginProps {
   onLogin: (admin: Admin) => void;
@@ -20,7 +21,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
     setError('');
 
     try {
-      const res = await fetch('/api/admin/login', {
+      const res = await apiFetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),

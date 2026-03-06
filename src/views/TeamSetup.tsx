@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Users, Plus, Trash2, ArrowRight, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { Team } from '../types';
+import { apiFetch } from '../utils/api';
 
 interface TeamSetupProps {
   team: Team;
@@ -36,7 +37,7 @@ const TeamSetup: React.FC<TeamSetupProps> = ({ team, onComplete }) => {
 
     setLoading(true);
     try {
-      const res = await fetch(`/api/teams/${team.id}`, {
+      const res = await apiFetch(`/api/teams/${team.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
