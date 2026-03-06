@@ -280,21 +280,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
               <p className="text-slate-400 font-medium">No games created yet. Start by creating your first treasure hunt!</p>
             </div>
           ) : (
-            games.map((game, idx) => (
-              <motion.div 
-                key={`game-${game.id}-${idx}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-3xl p-6 border border-slate-200 hover:border-indigo-500 transition-all group"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                    game.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 
-                    game.status === 'finished' ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-600'
-                  }`}>
-                    {game.status}
-                  </div>
-                  <div className="flex items-center gap-2">
+            games.map((game, idx) => {
+              const now = new Date('2026-03-06T07:23:51-08:00');
+              const isScheduled = game.startTime && new Date(game.startTime) > now;
+              const displayStatus = isScheduled ? 'Scheduled' : 
+                                   game.status === 'active' ? 'Active' : 
+                                   game.status === 'finished' ? 'Finished' : 'Scheduled';
+              
+              const statusColor = displayStatus === 'Active' ? 'bg-emerald-50 text-emerald-600' : 
+                                 displayStatus === 'Finished' ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-600';
+
+              return (
+                <motion.div 
+                  key={`game-${game.id}-${idx}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white rounded-3xl p-6 border border-slate-200 hover:border-indigo-500 transition-all group"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${statusColor}`}>
+                      {displayStatus}
+                    </div>
+                    <div className="flex items-center gap-2">
                     <div className="text-[10px] font-mono font-bold text-slate-400 uppercase">
                       {game.mode} mode
                     </div>
@@ -339,9 +346,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ admin, onSelectGame, on
                   </button>
                 </div>
               </motion.div>
-            ))
-          )}
-        </div>
+            );
+          })
+        )}
+      </div>
       </div>
 
       {/* Create Game Modal */}
