@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Camera, X, Zap, ZapOff, Compass, Heart, Star, Search, Map as MapIcon, Key, Box, Hexagon, Diamond, Triangle, Droplets } from 'lucide-react';
+import { Camera, X, Zap, ZapOff, Compass, Heart, Star, Search, Map as MapIcon, Key, Box, Hexagon, Diamond, Triangle, Droplets, Share2, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ScannerStyle } from '../types';
 
@@ -29,6 +29,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [manualCode, setManualCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showTroubleshooting, setShowTroubleshooting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
@@ -159,6 +161,24 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       onScan(manualCode.trim());
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !html5QrCodeRef.current) return;
+
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const decodedText = await html5QrCodeRef.current.scanFile(file, true);
+      onScan(decodedText);
+    } catch (err) {
+      console.error("File scan error:", err);
+      setError("Could not find a QR code in that image. Please try a clearer photo.");
+    } finally {
+      setIsSubmitting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -338,54 +358,98 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         )}
         
         {error ? (
-          <div className="text-red-400 text-sm font-medium flex flex-col items-center gap-3 w-full max-w-sm mx-auto">
-            <p className="leading-relaxed text-center">{error}</p>
-            
-            <form onSubmit={handleManualSubmit} className="w-full space-y-2 mt-2">
-              <div className="flex gap-2">
-                <input 
-                  type="text"
-                  value={manualCode}
-                  onChange={(e) => setManualCode(e.target.value)}
-                  placeholder="Enter code manually..."
-                  className="flex-grow bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                <button 
-                  type="submit"
-                  disabled={!manualCode.trim() || isSubmitting}
-                  className="px-6 py-3 bg-emerald-600 disabled:bg-emerald-600/50 rounded-xl text-white font-bold transition-all active:scale-95"
-                >
-                  Submit
-                </button>
-              </div>
-              <p className="text-[10px] text-white/40 text-center uppercase tracking-widest">
-                Fallback: Type the code found under the QR
+          <div className="text-red-400 text-sm font-medium flex flex-col items-center gap-4 w-full max-w-sm mx-auto p-4">
+            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 w-full text-center">
+              <p className="leading-relaxed mb-2">Camera Access Denied</p>
+              <p className="text-[10px] text-red-400/60 uppercase tracking-widest font-bold">
+                Browser security is blocking the camera
               </p>
-            </form>
-
-            <div className="flex flex-wrap justify-center gap-2 mt-4">
+            </div>
+            
+            <div className="w-full space-y-3">
               <button 
-                type="button"
-                onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-white/10 rounded-lg text-white text-xs uppercase tracking-widest font-bold"
-              >
-                Retry Camera
-              </button>
-              <button 
-                type="button"
-                onClick={requestPermission}
-                className="px-4 py-2 bg-white/10 rounded-lg text-white text-xs uppercase tracking-widest font-bold"
-              >
-                Grant Permission
-              </button>
-              <button 
-                type="button"
                 onClick={() => window.open(window.location.href, '_blank')}
-                className="px-4 py-2 bg-indigo-600 rounded-lg text-white text-xs uppercase tracking-widest font-bold"
+                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-display font-bold text-lg shadow-xl shadow-indigo-500/20 flex items-center justify-center gap-3 transition-all active:scale-95"
               >
+                <Share2 size={24} />
                 Open in New Tab
               </button>
+              <p className="text-[10px] text-slate-500 text-center px-4">
+                This is the most reliable fix for permission issues in preview windows.
+              </p>
             </div>
+
+            <div className="w-full h-px bg-white/10 my-2" />
+
+            <div className="w-full space-y-4">
+              <div className="flex flex-col gap-2">
+                <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold text-center">Alternative Methods</p>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isSubmitting}
+                    className="flex flex-col items-center justify-center gap-2 p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-colors"
+                  >
+                    <Search size={20} className="text-emerald-400" />
+                    <span className="text-[10px] font-bold uppercase">Upload Photo</span>
+                  </button>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleFileScan} 
+                    accept="image/*" 
+                    className="hidden" 
+                  />
+                  
+                  <button 
+                    onClick={() => setShowTroubleshooting(!showTroubleshooting)}
+                    className="flex flex-col items-center justify-center gap-2 p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-colors"
+                  >
+                    <Settings size={20} className="text-amber-400" />
+                    <span className="text-[10px] font-bold uppercase">Help</span>
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleManualSubmit} className="space-y-2">
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    value={manualCode}
+                    onChange={(e) => setManualCode(e.target.value)}
+                    placeholder="Or enter code manually..."
+                    className="flex-grow bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+                  />
+                  <button 
+                    type="submit"
+                    disabled={!manualCode.trim() || isSubmitting}
+                    className="px-4 py-3 bg-emerald-600 disabled:bg-emerald-600/50 rounded-xl text-white font-bold transition-all active:scale-95"
+                  >
+                    Go
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {showTroubleshooting && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                className="w-full bg-white/5 rounded-2xl p-4 text-[11px] text-slate-400 space-y-2 border border-white/5"
+              >
+                <p className="font-bold text-white/60 uppercase tracking-wider">Troubleshooting:</p>
+                <p>• Click the <span className="text-white">lock icon</span> in the address bar and set Camera to <span className="text-emerald-400">Allow</span>.</p>
+                <p>• Ensure no other apps (Zoom, Teams, etc.) are using your camera.</p>
+                <p>• Try a different browser (Chrome or Safari recommended).</p>
+                <button 
+                  onClick={requestPermission}
+                  className="text-emerald-400 underline font-bold"
+                >
+                  Try Force Permission Prompt
+                </button>
+              </motion.div>
+            )}
           </div>
         ) : (
           <div className="flex items-center justify-center gap-3 text-emerald-400">

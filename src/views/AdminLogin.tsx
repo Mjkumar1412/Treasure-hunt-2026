@@ -40,20 +40,10 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
     setLoading(true);
     setError('');
 
-    const apiUrl = import.meta.env.VITE_API_URL;
-    const isLocal = window.location.hostname === 'localhost' || 
-                    window.location.hostname === '127.0.0.1' ||
-                    window.location.hostname.endsWith('.run.app');
-    
-    if (!apiUrl && !isLocal) {
-      setError('Backend configuration missing. Please check VITE_API_URL.');
-      setLoading(false);
-      return;
-    }
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
 
     try {
-      const trimmedUsername = username.trim();
-      const trimmedPassword = password.trim();
 
       const res = await apiFetch('/api/admin/login', {
         method: 'POST',
