@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS admins (
 
 -- Seed Initial Admin
 INSERT INTO admins (username, password, "isMain") 
-VALUES ('MJK', 'Mjk@1412', TRUE)
+VALUES ('medisetty.kumar00@gmail.com', 'Mjk@1412', TRUE)
 ON CONFLICT (username) DO UPDATE SET password = 'Mjk@1412';
 
 -- Seed Initial Terms

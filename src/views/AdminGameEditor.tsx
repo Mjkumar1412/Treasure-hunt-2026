@@ -4,7 +4,7 @@ import { ArrowLeft, Plus, Trash2, Printer, Play, Users, Key, FileText, CheckCirc
 import { Game, Clue, Team, Admin, QRStyle, ScannerStyle, QRShape, QRColorType, TermsVersion } from '../types';
 import QRCodeStyled from '../components/QRCodeStyled';
 import { QRScanner } from '../components/QRScanner';
-import { apiFetch } from '../utils/api';
+import { apiFetch, safeJson } from '../utils/api';
 
 interface AdminGameEditorProps {
   admin: Admin;
@@ -75,11 +75,11 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
       apiFetch(`/api/games/${gameId}/teams`),
       apiFetch(`/api/admin/terms?requester=${admin.username}`)
     ]);
-    const gameData = await gRes.json();
+    const gameData = await safeJson(gRes);
     setGame(gameData);
-    setClues(await cRes.json());
-    setTeams(await tRes.json());
-    setTermsData(await termsRes.json());
+    setClues(await safeJson(cRes));
+    setTeams(await safeJson(tRes));
+    setTermsData(await safeJson(termsRes));
 
     if (gameData.qrStyle) setQrStyle(JSON.parse(gameData.qrStyle));
     if (gameData.scannerStyle) setScannerStyle(JSON.parse(gameData.scannerStyle));
@@ -152,7 +152,7 @@ const AdminGameEditor: React.FC<AdminGameEditorProps> = ({ admin, gameId, onBack
           body: JSON.stringify({ requester: admin.username })
         });
         if (!res.ok) {
-          const data = await res.json();
+          const data = await safeJson(res);
           setModal({
             type: 'alert',
             message: data.error || 'Failed to start game'

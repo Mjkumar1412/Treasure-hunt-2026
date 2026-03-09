@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { ArrowLeft, Activity, Users, Trophy, Clock, MapPin, Search } from 'lucide-react';
 import { Game, Team } from '../types';
 import socket from '../lib/socket';
-import { apiFetch } from '../utils/api';
+import { apiFetch, safeJson } from '../utils/api';
 
 interface AdminMonitoringProps {
   gameId: string;
@@ -38,9 +38,9 @@ const AdminMonitoring: React.FC<AdminMonitoringProps> = ({ gameId, onBack }) => 
       apiFetch('/api/games'),
       apiFetch(`/api/games/${gameId}/teams`)
     ]);
-    const games = await gRes.json();
+    const games = await safeJson(gRes);
     setGame(games.find((x: Game) => x.id === gameId));
-    setTeams(await tRes.json());
+    setTeams(await safeJson(tRes));
   };
 
   const filteredTeams = teams.filter(t => 
@@ -60,8 +60,8 @@ const AdminMonitoring: React.FC<AdminMonitoringProps> = ({ gameId, onBack }) => 
   useEffect(() => {
     const counts: Record<string, number> = {};
     const fetchCluesCounts = async () => {
-      const res = await fetch(`/api/games/${gameId}/clues`);
-      const clues = await res.json();
+      const res = await apiFetch(`/api/games/${gameId}/clues`);
+      const clues = await safeJson(res);
       teams.forEach(t => {
         counts[t.id] = clues.filter((c: any) => !c.teamId || c.teamId === t.id).length;
       });

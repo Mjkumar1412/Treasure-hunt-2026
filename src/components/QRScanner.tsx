@@ -27,9 +27,12 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   const [hasFlash, setHasFlash] = useState(false);
   const [isFlashOn, setIsFlashOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [manualCode, setManualCode] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
     const startScanner = async () => {
       try {
         const html5QrCode = new Html5Qrcode("reader");
@@ -43,20 +46,46 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           }
         };
 
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          config,
-          (decodedText) => {
-            setIsDetected(true);
-            if (style?.vibrationEnabled) {
-              window.navigator.vibrate?.(100);
-            }
-            setTimeout(() => {
-              onScan(decodedText);
-            }, 300);
-          },
-          () => {}
-        );
+        // Try to list cameras first - this can trigger permission prompt more reliably
+        const devices = await Html5Qrcode.getCameras();
+        if (!isMounted) return;
+
+        if (devices && devices.length > 0) {
+          // Prefer back camera if available
+          const backCamera = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear'));
+          const cameraId = backCamera ? backCamera.id : devices[0].id;
+
+          await html5QrCode.start(
+            cameraId,
+            config,
+            (decodedText) => {
+              setIsDetected(true);
+              if (style?.vibrationEnabled) {
+                window.navigator.vibrate?.(100);
+              }
+              setTimeout(() => {
+                onScan(decodedText);
+              }, 300);
+            },
+            () => {}
+          );
+        } else {
+          // Fallback to facingMode if getCameras returns nothing
+          await html5QrCode.start(
+            { facingMode: "environment" },
+            config,
+            (decodedText) => {
+              setIsDetected(true);
+              if (style?.vibrationEnabled) {
+                window.navigator.vibrate?.(100);
+              }
+              setTimeout(() => {
+                onScan(decodedText);
+              }, 300);
+            },
+            () => {}
+          );
+        }
 
         // Check for flash support
         if (typeof (html5QrCode as any).getRunningTrack === 'function') {
@@ -69,14 +98,20 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           }
         }
       } catch (err: any) {
+        if (!isMounted) return;
         console.error("Scanner start error:", err);
-        setError("Could not access camera. Please ensure permissions are granted.");
+        if (err.name === 'NotAllowedError' || err.message?.includes('Permission denied')) {
+          setError("Camera access was denied. This usually happens in preview windows. Please use the 'Open in New Tab' button below or enter the code manually.");
+        } else {
+          setError("Could not access camera. Please ensure permissions are granted and no other app is using the camera.");
+        }
       }
     };
 
     startScanner();
 
     return () => {
+      isMounted = false;
       if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
         html5QrCodeRef.current.stop().catch(err => console.error("Stop error:", err));
       }
@@ -97,6 +132,33 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       setIsFlashOn(newState);
     } catch (err) {
       console.error("Flash toggle error:", err);
+    }
+  };
+
+  const requestPermission = async () => {
+    try {
+      setError(null);
+      // Force a native browser permission prompt
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      // Stop the stream immediately, we just wanted the permission
+      stream.getTracks().forEach(track => track.stop());
+      // Restart the scanner
+      window.location.reload();
+    } catch (err: any) {
+      console.error("Manual permission request error:", err);
+      setError("Permission denied. Please click the lock icon in your browser address bar and set Camera to 'Allow'.");
+    }
+  };
+
+  const handleManualSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualCode.trim() || isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      onScan(manualCode.trim());
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -276,14 +338,54 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         )}
         
         {error ? (
-          <div className="text-red-400 text-sm font-medium flex flex-col items-center gap-2">
-            <p>{error}</p>
-            <button 
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-white/10 rounded-lg text-white text-xs uppercase tracking-widest font-bold"
-            >
-              Retry
-            </button>
+          <div className="text-red-400 text-sm font-medium flex flex-col items-center gap-3 w-full max-w-sm mx-auto">
+            <p className="leading-relaxed text-center">{error}</p>
+            
+            <form onSubmit={handleManualSubmit} className="w-full space-y-2 mt-2">
+              <div className="flex gap-2">
+                <input 
+                  type="text"
+                  value={manualCode}
+                  onChange={(e) => setManualCode(e.target.value)}
+                  placeholder="Enter code manually..."
+                  className="flex-grow bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <button 
+                  type="submit"
+                  disabled={!manualCode.trim() || isSubmitting}
+                  className="px-6 py-3 bg-emerald-600 disabled:bg-emerald-600/50 rounded-xl text-white font-bold transition-all active:scale-95"
+                >
+                  Submit
+                </button>
+              </div>
+              <p className="text-[10px] text-white/40 text-center uppercase tracking-widest">
+                Fallback: Type the code found under the QR
+              </p>
+            </form>
+
+            <div className="flex flex-wrap justify-center gap-2 mt-4">
+              <button 
+                type="button"
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-white/10 rounded-lg text-white text-xs uppercase tracking-widest font-bold"
+              >
+                Retry Camera
+              </button>
+              <button 
+                type="button"
+                onClick={requestPermission}
+                className="px-4 py-2 bg-white/10 rounded-lg text-white text-xs uppercase tracking-widest font-bold"
+              >
+                Grant Permission
+              </button>
+              <button 
+                type="button"
+                onClick={() => window.open(window.location.href, '_blank')}
+                className="px-4 py-2 bg-indigo-600 rounded-lg text-white text-xs uppercase tracking-widest font-bold"
+              >
+                Open in New Tab
+              </button>
+            </div>
           </div>
         ) : (
           <div className="flex items-center justify-center gap-3 text-emerald-400">

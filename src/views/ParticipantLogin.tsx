@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { LogIn, ShieldCheck, Users, Activity } from 'lucide-react';
 import { Team } from '../types';
-import { apiFetch } from '../utils/api';
+import { apiFetch, safeJson } from '../utils/api';
 
 interface ParticipantLoginProps {
   onLogin: (team: Team) => void;
@@ -31,13 +31,13 @@ const ParticipantLogin: React.FC<ParticipantLoginProps> = ({ onLogin, onAdminCli
         body: JSON.stringify({ loginId }),
       });
 
+      const data = await safeJson(res);
+
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || 'Login failed');
       }
 
-      const team = await res.json();
-      onLogin(team);
+      onLogin(data);
     } catch (err: any) {
       setError(err.message);
     } finally {

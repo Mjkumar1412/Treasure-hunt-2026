@@ -7,7 +7,7 @@ import { QRScanner } from '../components/QRScanner';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { downloadCluePDF, shareCluePDF } from '../utils/pdfGenerator';
 import socket from '../lib/socket';
-import { apiFetch } from '../utils/api';
+import { apiFetch, safeJson } from '../utils/api';
 
 interface ParticipantDashboardProps {
   team: Team;
@@ -99,20 +99,20 @@ const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({ team, onLog
 
   const fetchGame = async () => {
     const res = await apiFetch('/api/games');
-    const games = await res.json();
+    const games = await safeJson(res);
     const g = games.find((x: Game) => x.id === team.gameId);
     setGame(g);
   };
 
   const fetchHistory = async () => {
     const res = await apiFetch(`/api/teams/${team.id}/history`);
-    const data = await res.json();
+    const data = await safeJson(res);
     setHistory(data);
   };
 
   const fetchCurrentClue = async () => {
     const res = await apiFetch(`/api/teams/${team.id}/current-clue`);
-    const data = await res.json();
+    const data = await safeJson(res);
     setCurrentClue(data);
   };
 
@@ -133,7 +133,7 @@ const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({ team, onLog
         body: JSON.stringify({ teamId: team.id, code }),
       });
 
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) {
         // Explicitly handle sequence errors with the requested message if needed, 
         // though the server already provides it.

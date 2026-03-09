@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import "dotenv/config";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -13,31 +14,74 @@ const __dirname = path.dirname(__filename);
 // Initialize Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL || "";
 const supabaseKey = process.env.SUPABASE_ANON_KEY || "";
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("CRITICAL: SUPABASE_URL or SUPABASE_ANON_KEY is missing from environment variables!");
+} else {
+  console.log("Supabase client initialized with URL:", supabaseUrl);
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function bootstrapAdmin() {
-  const username = "MEDISETTY JYOTISWARA KUMAR";
-  const password = "Mjk@1412";
+  console.log("[Bootstrap] Starting admin synchronization...");
+  const adminsToBootstrap = [
+    { username: "medisetty.kumar00@gmail.com", password: "Mjk@1412" },
+    { username: "medisetty.kumar8@gmail.com", password: "Mjk@1412" }
+  ];
 
-  const { data: existing } = await supabase
-    .from("admins")
-    .select("*")
-    .eq("username", username)
-    .single();
+  for (const adminData of adminsToBootstrap) {
+    try {
+      const { data: existing, error: findError } = await supabase
+        .from("admins")
+        .select("*")
+        .eq("username", adminData.username)
+        .single();
 
-  if (!existing) {
-    console.log("Bootstrapping main admin...");
-    await supabase.from("admins").insert({
-      username,
-      password,
-      isMain: true
-    });
+      if (findError) {
+        if (findError.code === 'PGRST116') {
+          console.log(`[Bootstrap] Admin ${adminData.username} not found, creating...`);
+          const { error: insertError } = await supabase
+            .from("admins")
+            .insert({ username: adminData.username, password: adminData.password, isMain: true });
+          
+          if (insertError) {
+            console.error(`[Bootstrap] Failed to create ${adminData.username}:`, insertError.message);
+          } else {
+            console.log(`[Bootstrap] Admin ${adminData.username} created successfully.`);
+          }
+        } else {
+          console.error(`[Bootstrap] Database error checking ${adminData.username}:`, findError.message, findError.code);
+          if (findError.message.includes('relation "admins" does not exist')) {
+            console.error("[Bootstrap] CRITICAL: The 'admins' table does not exist in your Supabase database. Please run the migration SQL.");
+          }
+        }
+        continue;
+      }
+
+      if (existing) {
+        const { error: updateError } = await supabase
+          .from("admins")
+          .update({ password: adminData.password, isMain: true })
+          .eq("username", adminData.username);
+        
+        if (updateError) {
+          console.error(`[Bootstrap] Failed to sync ${adminData.username}:`, updateError.message);
+        } else {
+          console.log(`[Bootstrap] Admin ${adminData.username} synchronized.`);
+        }
+      }
+    } catch (err) {
+      console.error(`[Bootstrap] Unexpected failure for ${adminData.username}:`, err);
+    }
   }
 }
 
 async function startServer() {
+  console.log("[Server] Starting server initialization...");
   await bootstrapAdmin();
   const app = express();
+  app.use(cors());
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
     cors: { origin: "*" }
@@ -58,7 +102,6 @@ async function startServer() {
     
     if (error || !team) return res.status(404).json({ error: "Invalid Login ID" });
     
-    // Enforce single login
     if (team.isLoggedIn) {
       io.to(team.socketId).emit("force_logout", { message: "Logged in from another device" });
     }
@@ -66,19 +109,94 @@ async function startServer() {
     res.json(team);
   });
 
+  // Health Check
+  app.get("/api/health", async (req, res) => {
+    let dbStatus = "unknown";
+    let dbError = null;
+    try {
+      const { error } = await supabase.from("admins").select("count").limit(1);
+      if (error) {
+        dbStatus = "error";
+        dbError = error.message;
+      } else {
+        dbStatus = "connected";
+      }
+    } catch (err: any) {
+      dbStatus = "crash";
+      dbError = err.message;
+    }
+
+    res.json({ 
+      status: "ok", 
+      timestamp: new Date().toISOString(),
+      database: dbStatus,
+      dbError: dbError,
+      env: {
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseKey
+      }
+    });
+  });
+
   app.post("/api/admin/login", async (req, res) => {
     const { username, password } = req.body;
-    const { data: admin, error } = await supabase
+    console.log(`[Admin Login] Attempt for: ${username}`);
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: "Credentials required" });
+    }
+
+    try {
+      const { data: admin, error } = await supabase
+        .from("admins")
+        .select("*")
+        .ilike("username", username)
+        .single();
+
+      if (error) {
+        console.error("[Login] Database error for user:", username, error);
+        if (error.code === 'PGRST116') {
+          return res.status(401).json({ error: "Account not found. Please check your username." });
+        }
+        if (error.message.includes('relation "admins" does not exist')) {
+          return res.status(500).json({ error: "System authentication failure: 'admins' table missing. Please run the migration SQL in Supabase." });
+        }
+        return res.status(500).json({ error: "System authentication failure. Please try again later." });
+      }
+      
+      if (admin.password !== password) {
+        console.warn(`[Admin Login] Invalid password attempt for ${username}`);
+        return res.status(401).json({ error: "Invalid access key. Please verify your password." });
+      }
+
+      console.log("[Login] Successful login for:", admin.username);
+      res.json({
+        ...admin,
+        isMain: !!admin.isMain
+      });
+    } catch (err) {
+      console.error("[Admin Login] Unexpected error:", err);
+      res.status(500).json({ error: "Internal server error during login." });
+    }
+  });
+
+  app.get("/api/admin/stats", async (req, res) => {
+    const { requester } = req.query;
+    const { data: admin } = await supabase
       .from("admins")
       .select("*")
-      .eq("username", username)
-      .eq("password", password)
+      .eq("username", requester)
       .single();
 
-    if (error || !admin) return res.status(401).json({ error: "Invalid credentials" });
+    if (!admin) return res.status(403).json({ error: "Unauthorized" });
+
+    const { data: games } = await supabase.from("games").select("status");
+    const { data: teams } = await supabase.from("teams").select("id");
+
     res.json({
-      ...admin,
-      isMain: !!admin.isMain
+      totalGames: games?.length || 0,
+      activeGames: games?.filter(g => g.status === 'active').length || 0,
+      totalTeams: teams?.length || 0
     });
   });
 
@@ -353,6 +471,21 @@ async function startServer() {
 
     await supabase.from("games").update({ status: 'active' }).eq("id", req.params.id);
     io.emit("game_started", { gameId: req.params.id });
+    res.json({ success: true });
+  });
+
+  app.post("/api/games/:id/stop", async (req, res) => {
+    const { requester } = req.body;
+    const { data: admin } = await supabase
+      .from("admins")
+      .select("*")
+      .eq("username", requester)
+      .single();
+    
+    if (!admin || !admin.isMain) return res.status(403).json({ error: "Unauthorized" });
+
+    await supabase.from("games").update({ status: 'finished' }).eq("id", req.params.id);
+    io.emit("game_stopped", { gameId: req.params.id });
     res.json({ success: true });
   });
 
