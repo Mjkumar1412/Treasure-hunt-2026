@@ -118,24 +118,30 @@ async function startServer() {
       if (error) {
         dbStatus = "error";
         dbError = error.message;
+        console.error("[Health] Database error:", error.message);
       } else {
         dbStatus = "connected";
       }
     } catch (err: any) {
       dbStatus = "crash";
       dbError = err.message;
+      console.error("[Health] Database crash:", err.message);
     }
 
-    res.json({ 
+    const healthData = { 
       status: "ok", 
       timestamp: new Date().toISOString(),
       database: dbStatus,
       dbError: dbError,
       env: {
         hasUrl: !!supabaseUrl,
-        hasKey: !!supabaseKey
+        hasKey: !!supabaseKey,
+        nodeEnv: process.env.NODE_ENV
       }
-    });
+    };
+    
+    console.log("[Health] Check performed:", healthData.database);
+    res.json(healthData);
   });
 
   app.post("/api/admin/login", async (req, res) => {
